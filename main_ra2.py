@@ -83,11 +83,16 @@ class Lexer:
             self._add_token('IDENTIFIER', value)
 
     def tokenize(self):
+        errors = []              
         while self.current_char is not None:
             self.start_pos = self.pos
             self.start_col = self.col
-            self._state_initial()
-        return self.tokens
+            try:
+                self._state_initial()
+            except SyntaxError as e:
+                errors.append(str(e))
+                self._advance()
+        return self.tokens, errors  
 
 def process_file(filename):
     with open(filename, 'r') as f:
