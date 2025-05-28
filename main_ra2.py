@@ -94,17 +94,29 @@ class Lexer:
                 self._advance()
         return self.tokens, errors  
 
-def process_file(filename):
+def process_file(filename): # No seu main_ra2.py original
     with open(filename, 'r') as f:
         content = f.read()
     
     lexer = Lexer(content)
     try:
-        tokens = lexer.tokenize()
-        for token in tokens:
-            print(f"{token['type']:8} {token['value']:5} (Line: {token['line']}, Col: {token['col']})")
-    except SyntaxError as e:
-        print(f"Erro léxico: {e}")
+        # Correção aqui:
+        list_of_tokens, lexical_errors = lexer.tokenize() # Desempacota o resultado
+
+        if lexical_errors:
+            print("Erros léxicos encontrados:")
+            for err in lexical_errors:
+                print(f"  {err}")
+        
+        if list_of_tokens:
+            print("Tokens:")
+            for token in list_of_tokens: # Itera sobre a lista correta de tokens
+                print(f"{token['type']:8} {str(token['value']):5} (Line: {token['line']}, Col: {token['col']})")
+        elif not lexical_errors:
+            print("Nenhum token encontrado e nenhum erro léxico.")
+
+    except SyntaxError as e: # Embora o tokenize agora retorne erros em uma lista
+        print(f"Erro de sintaxe (inesperado aqui, pois tokenize deve tratar): {e}")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
