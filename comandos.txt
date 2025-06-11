@@ -1,1 +1,5 @@
 python main.py teste1.txt --asmpython main.py teste1.txt --asm
+
+avr-gcc -mmcu=atmega328p -Os -o out/programa.elf out/gerado.S funcoes_assembly.S
+avr-objcopy -O ihex out/programa.elf out/programa.hex
+avrdude -c arduino -p m328p -P COM3 -b 115200 -U flash:w:out/programa.hex

@@ -80,17 +80,21 @@ def main():
         return
         
     if gen_asm:
-        print(f"\nAnálise concluída. Gerando código para {len(final_ast['statements'])} instrução(ões) válida(s)...")
+        print(f"\nAnalise concluida. Gerando codigo para {len(final_ast['statements'])} instrucao(oes) valida(s)...")
         code_gen = CodeGenerator()
         assembly_code = code_gen.generate(final_ast)
         
         output_filename = fname.split('.')[0] + ".S"
         try:
-            with open(output_filename, "w", encoding="utf-8") as fp:
+            # --- ALTERE APENAS ESTA LINHA ---
+            # De: open(output_filename, "w", encoding="utf-8")
+            # Para:
+            with open(output_filename, "w", encoding="latin-1") as fp:
+            # --------------------------------
                 fp.write(assembly_code)
-            print(f"Código Assembly gerado com sucesso em '{output_filename}'")
+            print(f"Codigo Assembly gerado com sucesso em '{output_filename}'")
         except IOError as e:
-            print(f"Erro ao escrever o arquivo de saída: {e}")
+            print(f"Erro ao escrever o arquivo de saida: {e}")
 
 
 if __name__ == "__main__":
