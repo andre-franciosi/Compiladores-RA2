@@ -1,5 +1,3 @@
-# semantic.py
-
 class SemanticAnalyzer:
     def __init__(self):
         self.symbol_table = {}

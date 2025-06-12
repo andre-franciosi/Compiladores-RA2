@@ -1,6 +1,3 @@
-# lexer.py
-# Baseado no seu arquivo main_ra2.py
-
 import sys
 
 class Lexer:

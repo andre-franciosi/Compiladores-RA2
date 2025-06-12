@@ -1,5 +1,3 @@
-# codegen.py
-
 class CodeGenerator:
     def __init__(self):
         self.assembly_code = []

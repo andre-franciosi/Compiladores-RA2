@@ -1,7 +1,3 @@
-# parser_ra3.py
-# Baseado no seu arquivo parser.py
-
-# AST helpers - Funções para criar os nós da AST
 def num(value, kind): return {"type": "Number", "value": value, "kind": kind}
 def ident(name): return {"type": "Identifier", "name": name}
 def mem(): return {"type": "Mem"}
