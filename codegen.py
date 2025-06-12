@@ -12,78 +12,41 @@ class CodeGenerator:
 
     def generate(self, node):
         header = [
-            ".equ user_memory, 0x0100", 
-            "",
+            ".extern init_serial",
+            ".extern send_char",
+            ".extern send_newline",
+            ".extern print_16bit_decimal",
             ".section .text",
             ".global main",
             "main:",
-            "  ; --- Inicializacao da Pilha ---",
-            "  ldi r28, lo8(0x08FF) ; RAMEND low byte",
-            "  ldi r29, hi8(0x08FF) ; RAMEND high byte",
-            "  out 0x3E, r29      ; Endereco I/O do SPH",
-            "  out 0x3D, r28      ; Endereco I/O do SPL",
-            "  ; ----------------------------"
-        ]
+            "  ; --- Inicializacao da Pilha ---"
+            "  ldi r28, lo8(0x08FF)"
+            "  ldi r29, hi8(0x08FF)"
+            "  out 0x3E, r29  ; SPH"
+            "  out 0x3D, r28  ; SPL"
+            "  ; --- Inicializacao da Serial ---",
+            "  rcall init_serial",
+            "  ; -------------------------------"
+            "  ; Teste inicial da serial",
+            "  ldi r24, 'A'",
+            "  rcall send_char",
+            "  ldi r24, 'T'",
+            "  rcall send_char",
+            "  rcall send_newline",
+        ]   
         
         self.assembly_code = header
         self.visit(node)
 
+        # Loop infinito no final do programa
         self.assembly_code.append("end_program:")
-        self.assembly_code.append("  rjmp end_program ; Loop infinito")
+        self.assembly_code.append("  rjmp end_program")
         
-        # ADICIONADO DE VOLTA: Inclui as sub-rotinas no final do arquivo
-        self.add_subroutines()
+        # As sub-rotinas agora estao em um arquivo separado
+        # e nao sao mais adicionadas aqui.
 
         return "\n".join(self.assembly_code)
 
-    # --- ADICIONE ESTA FUNÇÃO DE VOLTA NO FINAL DA CLASSE ---
-    def add_subroutines(self):
-        subroutines = """
-; --- Sub-rotinas de 16 bits ---
-; Multiplicacao 16x16: (r25:r24) * (r23:r22) -> r25:r24
-mult16:
-  clr r27
-  clr r26
-  ldi r18, 16
-mult16_loop:
-  sbrc r22, 0
-  add r26, r24
-  sbrc r22, 0
-  adc r27, r25
-  lsr r23
-  ror r22
-  lsl r24
-  rol r25
-  dec r18
-  brne mult16_loop
-  movw r24, r26
-  ret
-
-; Divisao 16/16: (r25:r24) / (r23:r22) -> r25:r24 (quociente)
-div16:
-  clr r26
-  clr r27
-  ldi r18, 17
-div16_loop:
-  rol r24
-  rol r25
-  rol r26
-  rol r27
-  dec r18
-  cp r25, r23
-  cpc r24, r22
-  brlo div16_skip
-  sub r24, r22
-  sbc r25, r23
-div16_skip:
-  brne div16_loop
-  com r26
-  movw r24, r26
-  ret
-"""
-        self.assembly_code.append(subroutines)
-
-    # ... (todas as suas outras funções visit_* continuam aqui, sem alterações) ...
     def visit(self, node):
         method_name = f'visit_{node["type"]}'
         visitor = getattr(self, method_name, self.generic_visit)
@@ -95,11 +58,18 @@ div16_skip:
     def visit_Program(self, node):
         for stmt in node['statements']:
             self.visit(stmt)
+            # Apos cada instrucao principal, imprime o resultado se for um 'Res'
             if stmt.get('type') == 'Res':
-                 self.assembly_code.append("  pop r24 ; Limpa lixo da pilha")
-                 self.assembly_code.append("  pop r25 ; Limpa lixo da pilha")
+                 self.assembly_code.append("  ; --- Imprime o resultado da expressao ---")
+                 self.assembly_code.append("  pop r25 ; Pega o resultado (high byte) da pilha")
+                 self.assembly_code.append("  pop r24 ; Pega o resultado (low byte) da pilha")
+                 self.assembly_code.append("  rcall print_16bit_decimal")
+                 self.assembly_code.append("  rcall send_newline")
+                 self.assembly_code.append("  ; -----------------------------------------")
+
 
     def visit_Res(self, node):
+        # Apenas visita o argumento. A logica de impressao foi movida para visit_Program
         self.visit(node['arg'])
 
     def visit_Number(self, node):
@@ -128,12 +98,15 @@ div16_skip:
             '+': "  add r24, r22\n  adc r25, r23",
             '-': "  sub r24, r22\n  sbc r25, r23",
             '*': "  rcall mult16",
-            '/': "  rcall div16"
+            '/': "  rcall div16_unsigned_remainder",
+            '%': "  rcall div16_unsigned_remainder\n  movw r24, r22",  # Resto
+            '^': "  rcall pow16"  # Nova operação de potência
         }
         
         if node['op'] in op_map:
             self.assembly_code.append(op_map[node['op']])
         else:
+            # Mantem o aviso para operadores nao implementados
             self.assembly_code.append(f"  ; AVISO: Operador '{node['op']}' nao implementado")
             self.assembly_code.append("  ldi r24, 0\n  ldi r25, 0")
 
@@ -141,6 +114,7 @@ div16_skip:
         self.assembly_code.append("  push r25")
         self.assembly_code.append("  push r24")
 
+    # Os outros metodos visit_* (Identifier, Store, Mem, etc.) continuam os mesmos...
     def visit_Identifier(self, node):
         self.assembly_code.append(f"  ; Carregando ID '{node['name']}' (placeholder)")
         self.assembly_code.append("  ldi r24, 0")
@@ -153,28 +127,29 @@ div16_skip:
         self.visit(node['val'])
         self.assembly_code.append("  pop r24")
         self.assembly_code.append("  pop r25")
-        self.assembly_code.append("  ; Armazena em 'user_memory' (0x0100)")
-        self.assembly_code.append("  ldi r30, lo8(user_memory)")
-        self.assembly_code.append("  ldi r31, hi8(user_memory)")
+        # Define um endereco de memoria de usuario (exemplo)
+        self.assembly_code.append("  ldi r30, lo8(0x0200)")
+        self.assembly_code.append("  ldi r31, hi8(0x0200)")
         self.assembly_code.append("  st Z+, r24")
         self.assembly_code.append("  st Z, r25")
+        # Nao imprime resultado de V MEM
+        self.assembly_code.append("  ; --- Fim do V MEM ---")
+
 
     def visit_Mem(self, node):
         self.assembly_code.append("  ; --- Comando MEM (Load) ---")
-        self.assembly_code.append("  ; Carrega de 'user_memory' (0x0100)")
-        self.assembly_code.append("  ldi r30, lo8(user_memory)")
-        self.assembly_code.append("  ldi r31, hi8(user_memory)")
+        self.assembly_code.append("  ldi r30, lo8(0x0200)")
+        self.assembly_code.append("  ldi r31, hi8(0x0200)")
         self.assembly_code.append("  ld r24, Z+")
         self.assembly_code.append("  ld r25, Z")
-        self.assembly_code.append("  ; Empilha o valor carregado")
         self.assembly_code.append("  push r25")
         self.assembly_code.append("  push r24")
-    
+        # O resultado do MEM sera impresso pela logica do 'Res'
+
     def visit_ResRelative(self, node):
         self.assembly_code.append("  ; AVISO: N RES nao implementado, tratando como RES normal.")
         self.visit(node['n'])
-        self.assembly_code.append("  pop r24")
-        self.assembly_code.append("  pop r25")
+        # Nao imprime aqui, a logica do 'Res' cuidara disso
 
     def visit_If(self, node):
         else_label = self.new_label("ELSE")
