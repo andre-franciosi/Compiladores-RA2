@@ -1,7 +1,7 @@
 .extern init_serial
 .extern send_char
 .extern send_newline
-.extern print_16bit_decimal
+.extern print_16bit
 .section .text
 .global main
 main:
@@ -13,16 +13,14 @@ main:
   ldi r24, 'T'
   rcall send_char
   rcall send_newline
-  ; AVISO: Ponto flutuante (3.2) tratado como inteiro
-  ; Empilhando numero 3
-  ldi r24, lo8(3)
-  ldi r25, hi8(3)
+  ; push int 3
+  ldi r24, 3
+  ldi r25, 0
   push r25
   push r24
-  ; AVISO: Ponto flutuante (4.8) tratado como inteiro
-  ; Empilhando numero 4
-  ldi r24, lo8(4)
-  ldi r25, hi8(4)
+  ; push int 4
+  ldi r24, 4
+  ldi r25, 0
   push r25
   push r24
   ; Operacao: +
@@ -30,25 +28,49 @@ main:
   pop r23 ; Operando Direito (high byte)
   pop r24 ; Operando Esquerdo (low byte)
   pop r25 ; Operando Esquerdo (high byte)
-  add r24, r22
-  adc r25, r23
+  rcall fadd16
   ; Empilhando resultado
   push r25
   push r24
   ; --- Imprime o resultado da expressao ---
   pop r25 ; Pega o resultado (high byte) da pilha
   pop r24 ; Pega o resultado (low byte) da pilha
-  rcall print_16bit_decimal
+  rcall print_f16
   rcall send_newline
   ; -----------------------------------------
-  ; Empilhando numero 8
-  ldi r24, lo8(8)
-  ldi r25, hi8(8)
+  ; push int 5
+  ldi r24, 5
+  ldi r25, 0
   push r25
   push r24
-  ; Empilhando numero 2
-  ldi r24, lo8(2)
-  ldi r25, hi8(2)
+  ; push int 2
+  ldi r24, 2
+  ldi r25, 0
+  push r25
+  push r24
+  ; Operacao: -
+  pop r22 ; Operando Direito (low byte)
+  pop r23 ; Operando Direito (high byte)
+  pop r24 ; Operando Esquerdo (low byte)
+  pop r25 ; Operando Esquerdo (high byte)
+  rcall fsub16
+  ; Empilhando resultado
+  push r25
+  push r24
+  ; --- Imprime o resultado da expressao ---
+  pop r25 ; Pega o resultado (high byte) da pilha
+  pop r24 ; Pega o resultado (low byte) da pilha
+  rcall print_f16
+  rcall send_newline
+  ; -----------------------------------------
+  ; push float 10
+  ldi r24, 0
+  ldi r25, 73
+  push r25
+  push r24
+  ; push float 2
+  ldi r24, 0
+  ldi r25, 64
   push r25
   push r24
   ; Operacao: /
@@ -56,33 +78,133 @@ main:
   pop r23 ; Operando Direito (high byte)
   pop r24 ; Operando Esquerdo (low byte)
   pop r25 ; Operando Esquerdo (high byte)
-  rcall div16_unsigned_remainder
+  rcall fdiv16
   ; Empilhando resultado
   push r25
   push r24
   ; --- Imprime o resultado da expressao ---
   pop r25 ; Pega o resultado (high byte) da pilha
   pop r24 ; Pega o resultado (low byte) da pilha
-  rcall print_16bit_decimal
+  rcall print_f16
   rcall send_newline
   ; -----------------------------------------
-  ; AVISO: Ponto flutuante (1.5) tratado como inteiro
-  ; Empilhando numero 1
-  ldi r24, lo8(1)
-  ldi r25, hi8(1)
+  ; push int 6
+  ldi r24, 6
+  ldi r25, 0
+  push r25
+  push r24
+  ; push int 2
+  ldi r24, 2
+  ldi r25, 0
+  push r25
+  push r24
+  ; Operacao: %
+  pop r22 ; Operando Direito (low byte)
+  pop r23 ; Operando Direito (high byte)
+  pop r24 ; Operando Esquerdo (low byte)
+  pop r25 ; Operando Esquerdo (high byte)
+  ; AVISO: Operador '%' nao implementado
+  ldi r24, 0
+  ldi r25, 0
+  ; Empilhando resultado
   push r25
   push r24
   ; --- Imprime o resultado da expressao ---
   pop r25 ; Pega o resultado (high byte) da pilha
   pop r24 ; Pega o resultado (low byte) da pilha
-  rcall print_16bit_decimal
+  rcall print_f16
+  rcall send_newline
+  ; -----------------------------------------
+  ; push int 2
+  ldi r24, 2
+  ldi r25, 0
+  push r25
+  push r24
+  ; push int 3
+  ldi r24, 3
+  ldi r25, 0
+  push r25
+  push r24
+  ; Operacao: ^
+  pop r22 ; Operando Direito (low byte)
+  pop r23 ; Operando Direito (high byte)
+  pop r24 ; Operando Esquerdo (low byte)
+  pop r25 ; Operando Esquerdo (high byte)
+  rcall fpow16
+  ; Empilhando resultado
+  push r25
+  push r24
+  ; --- Imprime o resultado da expressao ---
+  pop r25 ; Pega o resultado (high byte) da pilha
+  pop r24 ; Pega o resultado (low byte) da pilha
+  rcall print_f16
+  rcall send_newline
+  ; -----------------------------------------
+  ; push int 8
+  ldi r24, 8
+  ldi r25, 0
+  push r25
+  push r24
+  ; push int 4
+  ldi r24, 4
+  ldi r25, 0
+  push r25
+  push r24
+  ; Operacao: *
+  pop r22 ; Operando Direito (low byte)
+  pop r23 ; Operando Direito (high byte)
+  pop r24 ; Operando Esquerdo (low byte)
+  pop r25 ; Operando Esquerdo (high byte)
+  rcall fmul16
+  ; Empilhando resultado
+  push r25
+  push r24
+  ; --- Imprime o resultado da expressao ---
+  pop r25 ; Pega o resultado (high byte) da pilha
+  pop r24 ; Pega o resultado (low byte) da pilha
+  rcall print_f16
+  rcall send_newline
+  ; -----------------------------------------
+  ; push float 9
+  ldi r24, 128
+  ldi r25, 72
+  push r25
+  push r24
+  ; push float 3
+  ldi r24, 0
+  ldi r25, 66
+  push r25
+  push r24
+  ; Operacao: /
+  pop r22 ; Operando Direito (low byte)
+  pop r23 ; Operando Direito (high byte)
+  pop r24 ; Operando Esquerdo (low byte)
+  pop r25 ; Operando Esquerdo (high byte)
+  rcall fdiv16
+  ; Empilhando resultado
+  push r25
+  push r24
+  ; --- Imprime o resultado da expressao ---
+  pop r25 ; Pega o resultado (high byte) da pilha
+  pop r24 ; Pega o resultado (low byte) da pilha
+  rcall print_f16
+  rcall send_newline
+  ; -----------------------------------------
+  ; push int 1
+  ldi r24, 1
+  ldi r25, 0
+  push r25
+  push r24
+  ; --- Imprime o resultado da expressao ---
+  pop r25 ; Pega o resultado (high byte) da pilha
+  pop r24 ; Pega o resultado (low byte) da pilha
+  rcall print_f16
   rcall send_newline
   ; -----------------------------------------
   ; --- Comando V MEM (Store) ---
-  ; AVISO: Ponto flutuante (15.0) tratado como inteiro
-  ; Empilhando numero 15
-  ldi r24, lo8(15)
-  ldi r25, hi8(15)
+  ; push int 20
+  ldi r24, 20
+  ldi r25, 0
   push r25
   push r24
   pop r24
@@ -95,7 +217,7 @@ main:
   ; --- Imprime o resultado da expressao ---
   pop r25 ; Pega o resultado (high byte) da pilha
   pop r24 ; Pega o resultado (low byte) da pilha
-  rcall print_16bit_decimal
+  rcall print_f16
   rcall send_newline
   ; -----------------------------------------
   ; --- Comando MEM (Load) ---
@@ -108,84 +230,7 @@ main:
   ; --- Imprime o resultado da expressao ---
   pop r25 ; Pega o resultado (high byte) da pilha
   pop r24 ; Pega o resultado (low byte) da pilha
-  rcall print_16bit_decimal
-  rcall send_newline
-  ; -----------------------------------------
-  ; Empilhando numero 3
-  ldi r24, lo8(3)
-  ldi r25, hi8(3)
-  push r25
-  push r24
-  ; Empilhando numero 4
-  ldi r24, lo8(4)
-  ldi r25, hi8(4)
-  push r25
-  push r24
-  ; Operacao: +
-  pop r22 ; Operando Direito (low byte)
-  pop r23 ; Operando Direito (high byte)
-  pop r24 ; Operando Esquerdo (low byte)
-  pop r25 ; Operando Esquerdo (high byte)
-  add r24, r22
-  adc r25, r23
-  ; Empilhando resultado
-  push r25
-  push r24
-  ; --- Imprime o resultado da expressao ---
-  pop r25 ; Pega o resultado (high byte) da pilha
-  pop r24 ; Pega o resultado (low byte) da pilha
-  rcall print_16bit_decimal
-  rcall send_newline
-  ; -----------------------------------------
-  ; Empilhando numero 5
-  ldi r24, lo8(5)
-  ldi r25, hi8(5)
-  push r25
-  push r24
-  ; Empilhando numero 6
-  ldi r24, lo8(6)
-  ldi r25, hi8(6)
-  push r25
-  push r24
-  ; Operacao: -
-  pop r22 ; Operando Direito (low byte)
-  pop r23 ; Operando Direito (high byte)
-  pop r24 ; Operando Esquerdo (low byte)
-  pop r25 ; Operando Esquerdo (high byte)
-  sub r24, r22
-  sbc r25, r23
-  ; Empilhando resultado
-  push r25
-  push r24
-  ; --- Imprime o resultado da expressao ---
-  pop r25 ; Pega o resultado (high byte) da pilha
-  pop r24 ; Pega o resultado (low byte) da pilha
-  rcall print_16bit_decimal
-  rcall send_newline
-  ; -----------------------------------------
-  ; Empilhando numero 2
-  ldi r24, lo8(2)
-  ldi r25, hi8(2)
-  push r25
-  push r24
-  ; Empilhando numero 2
-  ldi r24, lo8(2)
-  ldi r25, hi8(2)
-  push r25
-  push r24
-  ; Operacao: ^
-  pop r22 ; Operando Direito (low byte)
-  pop r23 ; Operando Direito (high byte)
-  pop r24 ; Operando Esquerdo (low byte)
-  pop r25 ; Operando Esquerdo (high byte)
-  rcall pow16
-  ; Empilhando resultado
-  push r25
-  push r24
-  ; --- Imprime o resultado da expressao ---
-  pop r25 ; Pega o resultado (high byte) da pilha
-  pop r24 ; Pega o resultado (low byte) da pilha
-  rcall print_16bit_decimal
+  rcall print_f16
   rcall send_newline
   ; -----------------------------------------
 end_program:

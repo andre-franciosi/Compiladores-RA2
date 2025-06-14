@@ -46,6 +46,13 @@ class SemanticAnalyzer:
 
         if left_type == 'error' or right_type == 'error':
             return {'type': 'error'}
+        
+        if node['op'] == '/':
+            if left_type == 'int':
+                node['args'][0]['coercion'] = 'int_to_float'
+            if right_type == 'int':
+                node['args'][1]['coercion'] = 'int_to_float'
+            return {'type': 'float'}
 
         if left_type == 'float' or right_type == 'float':
             if left_type == 'int':

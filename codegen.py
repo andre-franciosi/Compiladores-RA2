@@ -1,3 +1,24 @@
+import struct
+
+def _float_to_half_bits(self, f: float) -> int:
+    # conversão sem numpy – funciona em Python 3+
+    f32 = struct.unpack('>I', struct.pack('>f', f))[0]
+    sign = (f32 >> 31) & 0x1
+    exp  = (f32 >> 23) & 0xFF
+    frac =  f32 & 0x7FFFFF
+    if exp == 0xFF:        # Inf/NaN
+        exp16, frac16 = 0x1F, 0x200 if frac else 0
+    elif exp > 0x70:       # número normal
+        exp16, frac16 = exp - 0x70, frac >> 13
+    elif exp >= 0x67:      # sub-normal
+        shift = 0x71 - exp
+        frac16 = ((1 << 23) | frac) >> (shift + 13)
+        exp16  = 0
+    else:                  # underflow → 0
+        exp16, frac16 = 0, 0
+    return (sign << 15) | (exp16 << 10) | frac16
+
+
 class CodeGenerator:
     def __init__(self):
         self.assembly_code = []
@@ -7,13 +28,39 @@ class CodeGenerator:
     def new_label(self, prefix='L'):
         self.label_count += 1
         return f"{prefix}{self.label_count}"
+    
+    def _float_to_half_bits(self, f: float) -> int:
+        """
+        Implementação independente de NumPy: empacota em binary16
+        (round-to-nearest-even).  Cobre normais, subnormais, ±Inf e NaN.
+        """
+        f32 = struct.unpack('>I', struct.pack('>f', f))[0]   # bits do float32
+        sign = (f32 >> 31) & 0x1
+        exp  = (f32 >> 23) & 0xFF
+        frac = f32 & 0x7FFFFF
+
+        if exp == 0xFF:                         # ±Inf ou NaN
+            exp16  = 0x1F
+            frac16 = 0x200 if frac else 0       # preserva quiet-NaN
+        elif exp > 0x70:                        # número normal após remoção de bias
+            exp16  = exp - 0x70
+            frac16 = frac >> 13                 # descarta 13 bits
+        elif exp >= 0x67:                       # vira subnormal
+            shift  = 0x71 - exp                 # 1-14
+            frac16 = ((1 << 23) | frac) >> (shift + 13)
+            exp16  = 0
+        else:                                   # underflow → ±0
+            exp16  = 0
+            frac16 = 0
+
+        return (sign << 15) | (exp16 << 10) | frac16
 
     def generate(self, node):
         header = [
             ".extern init_serial",
             ".extern send_char",
             ".extern send_newline",
-            ".extern print_16bit_decimal",
+            ".extern print_16bit",
             ".section .text",
             ".global main",
             "main:",
@@ -61,7 +108,7 @@ class CodeGenerator:
                  self.assembly_code.append("  ; --- Imprime o resultado da expressao ---")
                  self.assembly_code.append("  pop r25 ; Pega o resultado (high byte) da pilha")
                  self.assembly_code.append("  pop r24 ; Pega o resultado (low byte) da pilha")
-                 self.assembly_code.append("  rcall print_16bit_decimal")
+                 self.assembly_code.append("  rcall print_f16")   # agora trata half-float
                  self.assembly_code.append("  rcall send_newline")
                  self.assembly_code.append("  ; -----------------------------------------")
 
@@ -72,15 +119,24 @@ class CodeGenerator:
 
     def visit_Number(self, node):
         value = node['value']
-        if node.get('coercion') == 'int_to_float' or node['kind'] == 'float':
-             self.assembly_code.append(f"  ; AVISO: Ponto flutuante ({value}) tratado como inteiro")
-             value = int(value)
 
-        self.assembly_code.append(f"  ; Empilhando numero {value}")
-        self.assembly_code.append(f"  ldi r24, lo8({value})")
-        self.assembly_code.append(f"  ldi r25, hi8({value})")
-        self.assembly_code.append("  push r25")
-        self.assembly_code.append("  push r24")
+        # decide se precisa empacotar como float ou int
+        is_float = node['kind'] == 'float' or node.get('coercion') == 'int_to_float'
+        if is_float:
+            half = self._float_to_half_bits(float(value))
+        else:
+            half = int(value) & 0xFFFF
+
+        lo, hi = half & 0xFF, half >> 8
+        self.assembly_code.extend([
+            f"  ; push {'float' if is_float else 'int'} {value}",
+            f"  ldi r24, {lo}",
+            f"  ldi r25, {hi}",
+            "  push r25",
+            "  push r24"
+        ])
+
+
 
     def visit_Op(self, node):
         self.visit(node['args'][0])
@@ -93,13 +149,13 @@ class CodeGenerator:
         self.assembly_code.append("  pop r25 ; Operando Esquerdo (high byte)")
 
         op_map = {
-            '+': "  add r24, r22\n  adc r25, r23",
-            '-': "  sub r24, r22\n  sbc r25, r23",
-            '*': "  rcall mult16",
-            '/': "  rcall div16_unsigned_remainder",
-            '%': "  rcall div16_unsigned_remainder\n  movw r24, r22",  # Resto
-            '^': "  rcall pow16"  # Nova operação de potência
+            '+': "  rcall fadd16",
+            '-': "  rcall fsub16",
+            '*': "  rcall fmul16",
+            '/': "  rcall fdiv16",
+            '^': "  rcall fpow16" 
         }
+
         
         if node['op'] in op_map:
             self.assembly_code.append(op_map[node['op']])
