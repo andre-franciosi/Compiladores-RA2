@@ -1,28 +1,5 @@
-; ============================================================================
-; funcoes_assembly.S  —  AVR ATmega328p
-; Rotinas IEEE-754 binary16 + utilitários de 16 bits + I/O em hexadecimal
-; ============================================================================
+.section .text
 
-        .section .text
-
-; ----------------------------------------------------------------------------
-; === Helpers de Ponto-Flutuante (binary16) ===================================
-; ----------------------------------------------------------------------------
-; Layout half-float
-; [15]  S   | [14:10] Exponent (bias 15) | [9:0] Mantissa
-; Mantissa normal: bit implícito “1”.
-; Registradores temporários
-;   r16  sign  (bit0)
-;   r17  exponent
-;   r18  mantissa low 8
-;   r19  mantissa high 3 (bits2:0) + bit extra
-; ----------------------------------------------------------------------------
-
-; --- _unpack_f16 -------------------------------------------------------------
-; Entrada : ZH:ZL (r31:r30) = word half-float
-; Saída   : r16 sign, r17 exp, r19:r18 mantissa-11-bits
-; Clobber : r18-r19
-; ----------------------------------------------------------------------------
 _unpack_f16:
         ; sinal
         mov     r16, r31
@@ -481,23 +458,11 @@ nibble2ascii:
         brlo    3f
         subi    r24, -('A' - 10)
         rjmp    4f
-3:      subi    r24, -'0'
-4:      rcall   send_char
+        subi    r24, -'0'
+        rcall   send_char
         ret
-
-
-; ============================================================================
-; FIM DE funcoes_assembly.S
-; ============================================================================
-
-
+        
         .section .bss
-        ; (nenhum dado estático necessário neste arquivo)
-
-
-; ============================================================================
-; UART0 – init_serial / send_char / send_newline  (ATmega328P, 9600-8N1)
-; ============================================================================
 
         ; ---- Registros de I/O (endereços em data-space) --------------------
         .equ    UDR0    , 0x00C6
@@ -536,7 +501,7 @@ init_serial:
 .global send_char
 send_char:                                    ; r24 = caractere
         push    r18
-1:      lds     r18, UCSR0A
+        lds     r18, UCSR0A
         sbrs    r18, UDRE0                    ; espera buffer vazio
         rjmp    1b
         sts     UDR0, r24
